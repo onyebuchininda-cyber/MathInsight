@@ -1,0 +1,4 @@
+student_id,grade,domain,skill,evidence_type,result,observation,previous_support,fidelity,progress,source
+S01,11,Functions,Inverse Function,Summative Assessment,45,"Can swap x and y but cannot consistently solve for y","Guided practice",High,Limited,"SA2"
+S02,11,Functions,Composite Function,Summative Assessment,52,"Confuses order of composition","Worked examples",Medium,Some progress,"SA2"
+S03,11,Functions,Domain and Range,Teacher Observation,,"Can identify domain from formula but struggles from graph","Class differentiation",High,Some progress,"Teacher Observation"

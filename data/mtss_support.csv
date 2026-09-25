@@ -1,0 +1,4 @@
+support_id,tier_context,support_type,description,progress_monitoring,fidelity_guideline,source
+M001,Tier 1,Differentiated Instruction,"Provide targeted worked examples and guided questioning during normal instruction","Check independent question after support","Record whether support was delivered as planned","School MTSS Framework"
+M002,Tier 2,Small Group,"Provide focused small-group instruction on one identified priority skill","Short exit ticket after each session","Use agreed intervention frequency and duration","School MTSS Framework"
+M003,Tier 2,Pull Out,"Provide targeted intervention outside regular lesson where appropriate","Weekly skill-based check","Record attendance duration and intervention delivery","School MTSS Framework"
