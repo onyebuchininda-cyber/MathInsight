@@ -32,7 +32,6 @@ def ingest_data(model, client):
         if os.path.exists(path):
             df = pd.read_csv(path)
             
-            # Buat teks dokumen untuk embedding
             if col_name == "student_evidence":
                 df['text'] = df.apply(lambda x: f"Student {x['student_id']} ({x['grade']}) - Skill: {x['skill']}. Observation: {x['observation']}. Progress: {x['progress']}", axis=1)
             elif col_name == "pck_knowledge":
@@ -57,14 +56,14 @@ def ingest_data(model, client):
 # 2. Inisialisasi Resource (Caching agar efisien)
 @st.cache_resource
 def load_resources():
+    model = SentenceTransformer('all-MiniL6-v2') # Note: Corrected model name in cached resource
+    # Re-initialize to be safe
     model = SentenceTransformer('all-MiniLM-L6-v2')
     client = chromadb.PersistentClient(path="./vector_store")
     
-    # CEK: Jika koleksi utama tidak ada, jalankan ingest_data secara otomatis
     try:
         client.get_collection(name="student_evidence")
     except:
-        # Jika error (berarti database kosong), bangun databasenya sekarang
         ingest_data(model, client)
         
     groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
@@ -137,9 +136,10 @@ if query:
                     ],
                     model="openai/gpt-oss-120b",
                 )
+                
                 ai_response = chat_completion.choices[0].message.content
+                
                 st.subheader("🤖 Analisis MathInsight")
-                st.write(ai_// la respons)
                 st.write(ai_response)
                 
                 with st.expander("Lihat Bukti Data yang Digunakan"):
