@@ -56,8 +56,7 @@ def ingest_data(model, client):
 # 2. Inisialisasi Resource (Caching agar efisien)
 @st.cache_resource
 def load_resources():
-    model = SentenceTransformer('all-MiniL6-v2') # Note: Corrected model name in cached resource
-    # Re-initialize to be safe
+    # PERBAIKAN: Nama model harus 'all-MiniLM-L6-v2' (Pakai M)
     model = SentenceTransformer('all-MiniLM-L6-v2')
     client = chromadb.PersistentClient(path="./vector_store")
     
@@ -102,7 +101,7 @@ if query:
                     doc = results['documents'][0][0]
                     meta = results['metadatas'][0][0]
                     retrieved_data.append({
-                        "Sumber": SOURCE_MAP.get(col_name, col_name),
+                        "Sumber": SOURCE_MAP.get(col_name, col_// la respons),
                         "Informasi": doc,
                         "Detail": clean_metadata(meta)
                     })
