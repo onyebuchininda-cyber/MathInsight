@@ -12,17 +12,6 @@ load_dotenv()
 # Pengaturan Halaman Streamlit
 st.set_page_config(page_title="MathInsight", page_icon="📐")
 
-# 1. Inisialisasi Resource (Caching agar efisien)
-@st.cache_resource
-def load_resources():
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-    client = chromadb.PersistentClient(path="./vector_store")
-    # Inisialisasi Groq Client
-    groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-    return model, client, groq_client
-
-model, client, groq_client = load_resources()
-
 # Pemetaan nama teknis ke bahasa ramah guru
 SOURCE_MAP = {
     "student_evidence": "Bukti Belajar Siswa",
@@ -30,11 +19,61 @@ SOURCE_MAP = {
     "mtss_support": "Kerangka Dukungan (MTSS)"
 }
 
+# 1. Fungsi untuk Ingest Data (Membangun Vector Store)
+def ingest_data(model, client):
+    """Fungsi ini membangun kembali database jika belum ada di server."""
+    files_to_ingest = {
+        "data/student_evidence.csv": "student_evidence",
+        "data/pck_knowledge.csv": "pck_knowledge",
+        "data/mtss_support.csv": "mtss_support"
+    }
+    
+    for path, col_name in files_to_ingest.items():
+        if os.path.exists(path):
+            df = pd.read_csv(path)
+            
+            # Buat teks dokumen untuk embedding
+            if col_name == "student_evidence":
+                df['text'] = df.apply(lambda x: f"Student {x['student_id']} ({x['grade']}) - Skill: {x['skill']}. Observation: {x['observation']}. Progress: {x['progress']}", axis=1)
+            elif col_name == "pck_knowledge":
+                df['text'] = df.apply(lambda x: f"Skill: {x['skill']}. Typical Error: {x['typical_error']}. Misconception: {x['possible_misconception']}. Prompt: {x['diagnostic_prompt']}", axis=1)
+            elif col_name == "mtss_support":
+                df['text'] = df.apply(lambda x: f"Support Type: {x['support_type']} ({x['tier_context']}). Description: {x['description']}", axis=1)
+            
+            collection = client.get_or_create_collection(name=col_name)
+            
+            documents = df['text'].tolist()
+            ids = [str(i) for i in range(len(documents))]
+            embeddings = model.encode(documents).tolist()
+            metadatas = df.drop(columns=['text']).to_dict(orient='records')
+            
+            collection.add(
+                embeddings=embeddings,
+                documents=documents,
+                metadatas=metadatas,
+                ids=ids
+            )
+
+# 2. Inisialisasi Resource (Caching agar efisien)
+@st.cache_resource
+def load_resources():
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    client = chromadb.PersistentClient(path="./vector_store")
+    
+    # CEK: Jika koleksi utama tidak ada, jalankan ingest_data secara otomatis
+    try:
+        client.get_collection(name="student_evidence")
+    except:
+        # Jika error (berarti database kosong), bangun databasenya sekarang
+        ingest_data(model, client)
+        
+    groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+    return model, client, groq_client
+
+model, client, groq_client = load_resources()
+
 def clean_metadata(meta):
-    """Mengubah metadata teknis {key: value} menjadi daftar teks yang rapi."""
-    if not meta:
-        return ""
-    # Mengubah setiap pasangan key-value menjadi "Key: Value" dan menggabungkannya dengan baris baru
+    if not meta: return ""
     lines = [f"{k.replace('_', ' ').title()}: {v}" for k, v in meta.items()]
     return "\n".join(lines)
 
@@ -45,16 +84,13 @@ Selamat datang di **MathInsight**. Chatbot ini membantu guru menganalisis bukti 
 dengan menghubungkannya ke PCK dan konteks MTSS secara objektif.
 """)
 
-# Kotak Input untuk Guru
 query = st.text_input("Masukkan pertanyaan Anda tentang siswa atau materi:", placeholder="Contoh: Apa saran untuk membantu siswa S02 yang kesulitan komposisi fungsi?")
 
 if query:
     with st.spinner("MathInsight sedang berpikir..."):
-        # --- TAHAP 1: RETRIEVAL (Mencari Data) ---
         collections = ["student_evidence", "pck_knowledge", "mtss_support"]
         query_vector = model.encode([query]).tolist()
         
-        # List untuk menyimpan hasil pencarian secara terstruktur
         retrieved_data = []
         full_context_for_ai = ""
 
@@ -66,22 +102,16 @@ if query:
                 if results['documents'][0]:
                     doc = results['documents'][0][0]
                     meta = results['metadatas'][0][0]
-                    
-                    # Gunakan fungsi clean_metadata agar tampilan Detail rapi
                     retrieved_data.append({
                         "Sumber": SOURCE_MAP.get(col_name, col_name),
                         "Informasi": doc,
                         "Detail": clean_metadata(meta)
                     })
-                    
-                    # Simpan untuk dikirim ke AI
                     full_context_for_ai += f"\nSource [{col_name}]: {doc}\nMetadata: {meta}\n"
             except Exception as e:
                 st.error(f"Error mencari di {col_name}: {e}")
 
-        # --- TAHAP 2: GENERATION (Menyusun Jawaban dengan LLM) ---
         if retrieved_data:
-            # Instruksi ketat agar AI mengikuti prinsip proyek
             system_prompt = (
                 "Anda adalah asisten ahli pedagogi matematika untuk guru. "
                 "Tugas Anda adalah membantu guru menganalisis data siswa menggunakan bukti yang diberikan. "
@@ -107,14 +137,11 @@ if query:
                     ],
                     model="openai/gpt-oss-120b",
                 )
-                
                 ai_response = chat_completion.choices[0].message.content
-                
-                # Tampilkan Jawaban Akhir
                 st.subheader("🤖 Analisis MathInsight")
+                st.write(ai_// la respons)
                 st.write(ai_response)
                 
-                # Tampilkan Data Mentah dalam TABEL yang rapi
                 with st.expander("Lihat Bukti Data yang Digunakan"):
                     df_evidence = pd.DataFrame(retrieved_data)
                     st.table(df_evidence)
